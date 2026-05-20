@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSV Cleaner</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#f5f4f0;--surface:#fff;--border:#e2e0d8;--border-strong:#c8c5bb;
+  --text:#1a1916;--muted:#6b6860;--faint:#9e9b93;
+  --accent:#2d5a3d;--accent-light:#e8f0ea;--accent-dark:#1a3d27;
+  --danger:#8b2020;--danger-light:#fdf0f0;
+  --warn:#7a5c1e;--warn-light:#fdf7e8;
+  --success:#1a5c2d;--success-light:#e8f5ec;
+  --info:#1a4a7a;--info-light:#e8f0fb;
+  --purple:#4b2d8b;--purple-light:#f0ebfb;
+  --teal:#1a5c5c;--teal-light:#e8f5f5;
+  --radius:8px;--radius-lg:12px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:2rem 1rem;}
+.wrap{max-width:760px;margin:0 auto;}
+h1{font-size:22px;font-weight:600;letter-spacing:-0.3px;}
+h1 + p{font-size:14px;color:var(--muted);margin-top:4px;margin-bottom:2rem;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem;margin-bottom:1rem;}
+.card-title{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.upload{border:2px dashed var(--border-strong);border-radius:var(--radius-lg);padding:3rem 2rem;text-align:center;cursor:pointer;background:var(--surface);transition:border-color .15s,background .15s;}
+.upload:hover,.upload.drag{border-color:var(--accent);background:var(--accent-light);}
+.upload svg{display:block;margin:0 auto 12px;color:var(--faint);}
+.upload h2{font-size:16px;font-weight:500;margin-bottom:4px;}
+.upload p{font-size:13px;color:var(--muted);}
+button{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer;transition:background .1s;display:inline-flex;align-items:center;gap:6px;}
+button:hover{background:var(--bg);}
+button:active{transform:scale(.98);}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+button.primary:hover{background:var(--accent-dark);}
+button.sm{font-size:12px;padding:4px 10px;}
+button:disabled{opacity:.4;pointer-events:none;}
+input[type=text]{font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--surface);color:var(--text);outline:none;width:100%;transition:border-color .15s;}
+input[type=text]:focus{border-color:var(--accent);}
+.badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;font-family:'DM Mono',monospace;}
+.badge-warn{background:var(--warn-light);color:var(--warn);}
+.badge-danger{background:var(--danger-light);color:var(--danger);}
+.badge-saved{background:var(--success-light);color:var(--success);}
+.badge-info{background:var(--info-light);color:var(--info);}
+.badge-purple{background:var(--purple-light);color:var(--purple);}
+.col-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:4px;max-height:280px;overflow-y:auto;padding-right:4px;}
+.col-item{display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 8px;border-radius:var(--radius);cursor:pointer;transition:background .1s;}
+.col-item:hover{background:var(--bg);}
+.col-item input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;cursor:pointer;flex-shrink:0;}
+.col-item input:disabled{cursor:not-allowed;}
+.dup-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--border);font-size:13px;}
+.dup-row:last-child{border-bottom:none;}
+.dup-row:hover{background:var(--bg);border-radius:var(--radius);}
+.dict-row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-bottom:1px solid var(--border);font-size:13px;}
+.dict-row:last-child{border-bottom:none;}
+.dict-row:hover{background:var(--bg);border-radius:var(--radius);}
+.dict-domain{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);min-width:180px;}
+.dict-company{flex:1;}
+.dict-source{font-size:11px;padding:2px 6px;border-radius:4px;flex-shrink:0;}
+.dict-source.builtin{background:var(--info-light);color:var(--info);}
+.dict-source.custom{background:var(--success-light);color:var(--success);}
+.row{display:flex;gap:8px;align-items:center;}
+.row-between{display:flex;justify-content:space-between;align-items:center;}
+.summary-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 0;font-size:13px;color:var(--muted);}
+.tag-chip{display:inline-flex;align-items:center;gap:6px;background:var(--info-light);color:var(--info);font-size:13px;padding:4px 12px;border-radius:99px;border:1px solid #b5d4f4;}
+.toggle-row{display:flex;align-items:center;gap:10px;font-size:13px;}
+.toggle-row input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;flex-shrink:0;}
+.unify-preview{margin-top:12px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;max-height:220px;overflow-y:auto;}
+.unify-preview table{width:100%;border-collapse:collapse;font-size:12px;}
+.unify-preview th{background:var(--bg);padding:6px 10px;text-align:left;font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;position:sticky;top:0;}
+.unify-preview td{padding:5px 10px;border-top:1px solid var(--border);}
+.unify-preview td.changed{color:var(--purple);font-weight:500;}
+.unify-preview td.same{color:var(--faint);}
+::-webkit-scrollbar{width:6px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>CSV Cleaner</h1><p>Clean columns, enrich data, filter rows, detect duplicate companies — then download.</p></header>
+
+  <div id="upload-zone" class="upload" onclick="document.getElementById('file-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
+    <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4"/></svg>
+    <h2>Drop a CSV file here</h2><p>or click to browse</p>
+    <input type="file" id="file-input" accept=".csv,.CSV" style="display:none" onchange="handleFile(this.files[0])">
+  </div>
+
+  <div id="main" style="display:none;margin-top:1.5rem;">
+
+    <div class="card">
+      <div class="row-between" style="margin-bottom:4px;">
+        <div><span style="font-weight:600;font-size:15px;" id="file-name"></span><span style="font-size:13px;color:var(--muted);margin-left:8px;" id="file-stats"></span></div>
+        <button class="sm" onclick="resetTool()">↺ New file</button>
+      </div>
+    </div>
+
+    <!-- ── Company Enrichment ─────────────────────────────────────────── -->
+    <div class="card" id="enrich-section" style="display:none;">
+      <div class="row-between" style="margin-bottom:10px;">
+        <p class="card-title" style="margin:0;">◈ Company enrichment from email <span id="enrich-badge" class="badge badge-purple" style="margin-left:4px;"></span></p>
+        <div class="row">
+          <button class="sm" onclick="toggleDomainDict()">☰ Domain dictionary</button>
+        </div>
+      </div>
+      <p style="font-size:13px;color:var(--muted);" id="enrich-summary"></p>
+
+      <div id="domain-dict-panel" style="display:none;margin-top:12px;">
+        <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;max-height:240px;overflow-y:auto;" id="dict-list"></div>
+        <div style="margin-top:10px;">
+          <p style="font-size:12px;color:var(--muted);margin-bottom:6px;">Add new domain → company mapping:</p>
+          <div class="row">
+            <input type="text" id="dict-domain-input" placeholder="domain.com" style="width:180px;flex-shrink:0;">
+            <input type="text" id="dict-company-input" placeholder="Company Name, Inc.">
+            <button onclick="addDomainEntry()" style="flex-shrink:0;">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Job Title Unification ──────────────────────────────────────── -->
+    <div class="card" id="title-section" style="display:none;">
+      <p class="card-title">⊕ Job title unification</p>
+      <label class="toggle-row">
+        <input type="checkbox" id="unify-toggle" onchange="onUnifyToggle()">
+        <span>Add <strong>Unified Title</strong> column based on seniority</span>
+      </label>
+      <div id="unify-preview-wrap" style="display:none;">
+        <div class="unify-preview" id="unify-preview-table"></div>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px;" id="unify-stats"></p>
+      </div>
+    </div>
+
+    <!-- ── Row Filters ─────────────────────────────────────────────────── -->
+    <div class="card">
+      <p class="card-title">⊘ Row filters — remove rows where Company contains</p>
+      <div id="keyword-list" style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px;min-height:28px;"></div>
+      <div class="row"><input type="text" id="keyword-input" placeholder="Add keyword (e.g. plumbing)" onkeydown="if(event.key==='Enter')addKeyword()"><button onclick="addKeyword()" style="flex-shrink:0;">Add</button></div>
+      <p style="margin-top:8px;font-size:12px;color:var(--muted);" id="row-filter-summary"></p>
+    </div>
+
+    <!-- ── Tag ────────────────────────────────────────────────────────── -->
+    <div class="card">
+      <p class="card-title">◇ Add Tag column <span style="font-size:12px;font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;">— appended to every row in the downloaded CSV</span></p>
+      <div id="tag-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;min-height:28px;"></div>
+      <div class="row"><input type="text" id="tag-input" placeholder='Type a tag value (e.g. Estimator 2026)'><button onclick="addTag()" style="flex-shrink:0;">Add tag</button></div>
+      <p style="margin-top:8px;font-size:12px;color:var(--muted);" id="tag-summary">No tag set — Tag column will not be added.</p>
+    </div>
+
+    <!-- ── Column Picker ──────────────────────────────────────────────── -->
+    <div class="card">
+      <div class="row-between" style="margin-bottom:12px;">
+        <p class="card-title" style="margin:0;">▦ Columns to keep <span id="memory-badge" class="badge badge-saved" style="display:none;margin-left:6px;">✓ choices remembered</span></p>
+        <div class="row">
+          <button class="sm" onclick="clearMemory()">Clear memory</button>
+          <button class="sm" onclick="selectAll()">Keep all</button>
+          <button class="sm" onclick="selectNone()">Keep none</button>
+        </div>
+      </div>
+      <div id="col-list" class="col-grid"></div>
+    </div>
+
+    <!-- ── Duplicates ─────────────────────────────────────────────────── -->
+    <div class="card" id="dup-section">
+      <div onclick="toggleDups()" style="cursor:pointer;user-select:none;" class="row-between">
+        <p class="card-title" style="margin:0;">⎘ Possible duplicate companies <span id="dup-count-badge" class="badge badge-warn" style="margin-left:4px;"></span></p>
+        <div class="row" style="gap:12px;">
+          <span id="dup-legend" style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:12px;">
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#c0392b;display:inline-block;"></span>Near certain</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#d68910;display:inline-block;"></span>Likely</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#2471a3;display:inline-block;"></span>Possible</span>
+          </span>
+          <svg id="dup-chevron" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="transition:transform .2s;flex-shrink:0;"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </div>
+      <div id="dup-body" style="margin-top:12px;">
+        <div id="dup-list"></div>
+        <div style="height:1px;background:var(--border);margin:12px 0;"></div>
+        <div class="row" style="flex-wrap:wrap;">
+          <button onclick="downloadDupCSV()">↓ Download duplicate report</button>
+          <button onclick="copyAllDups()">⎘ Copy to clipboard</button>
+          <span id="copy-confirm" style="font-size:12px;color:var(--success);opacity:0;transition:opacity .3s;"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary-bar">
+      <span id="summary"></span>
+      <button class="primary" id="download-btn" onclick="downloadCleaned()">↓ Download cleaned CSV</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+let csvData=[],headers=[],keepCols=new Set(),keywords=[],dupPairs=[],dismissedDups=new Set(),tags=[],dupOpen=true;
+
+// ── Constants ─────────────────────────────────────────────────────────────
+const DEFAULT_KEYWORDS=['restoration','mechanical','hvac','glass','glazing','partition','asphalt','core & main','plastering'];
+const AUTO_REMOVE=['record status','latest pinned note','updated by'];
+const MK='csv_cleaner_col_memory';
+const DOMAIN_MK='csv_cleaner_domain_dict_v2';
+
+// ── Built-in domain dictionary (verified) ─────────────────────────────────
+const BUILTIN_DOMAINS={
+  'arizonapartition.com':'Arizona Partition, Inc.',
+  'azliberty.com':'Liberty Concrete',
+  'billstaceyconstruction.com':'Bill Stacey Construction, Inc.',
+  'buesingcorp.com':'Buesing Corp.',
+  'crconstructionservices.com':'C & R Construction Services',
+  'degancon.com':'Degan Construction',
+  'dpeyuma.com':'DPE Construction, Inc.',
+  'eticoteam.com':'Etico LLC',
+  'evanscustomconcrete.com':'Evans Custom Concrete',
+  'fanncontracting.com':'Fann Contracting, Inc.',
+  'ffelectric.com':'F & F Electric, Inc.',
+  'gcinc.com':'Granite Construction',
+  'gjdev.com':'GJ Development',
+  'gunsightco.com':'Gunsight Co.',
+  'jenkinsrestorations.com':'Jenkins Restorations',
+  'jfellis.com':'Sportsmans Concrete, Inc.',
+  'johnsonstatewide.com':'Johnson Statewide Caulking',
+  'kearcorp.com':'KEAR Civil Corporation',
+  'klevcon.com':'Kleven Construction',
+  'kwrconst.com':'KWR Construction, Inc.',
+  'markhamcontracting.com':'Markham Contracting Co., Inc.',
+  'monroyconstruction.com':'Monroy Construction',
+  'mtn-inc.com':'MTN Inc.',
+  'mwmorrissey.com':'MW Morrissey Construction',
+  'princetonaz.com':'Princeton Construction, LLC',
+  'recreatecompanies.com':'Re-Create Companies',
+  'rummelconstruction.com':'Rummel Construction, Inc.',
+  'soundcrete.us':'Sound Crete Contractors Inc.',
+  'ssrfg.com':'Silver State Refrigeration, HVAC & Plumbing',
+  'sundt.com':'Sundt Construction',
+  'sunmechanical.net':'Sun Mechanical',
+  'sunvalleyconstruction.com':'Sun Valley Construction',
+  'trinityundergroundaz.com':'Trinity Underground AZ',
+};
+
+const PERSONAL_DOMAINS=new Set(['gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com','me.com','aol.com','msn.com','live.com','comcast.net','att.net']);
+
+// ── Domain dictionary helpers ─────────────────────────────────────────────
+function loadUserDomains(){try{return JSON.parse(localStorage.getItem(DOMAIN_MK)||'{}');}catch(e){return{};}}
+function saveUserDomains(d){try{localStorage.setItem(DOMAIN_MK,JSON.stringify(d));}catch(e){}}
+function getFullDict(){return{...BUILTIN_DOMAINS,...loadUserDomains()};}
+
+function domainFromEmail(email){
+  if(!email)return'';
+  const p=email.split('@');
+  return p.length>1?p[1].toLowerCase().trim():'';
+}
+
+function lookupCompany(email){
+  const d=domainFromEmail(email);
+  if(!d||PERSONAL_DOMAINS.has(d))return'';
+  return getFullDict()[d]||'';
+}
+
+function addDomainEntry(){
+  const domEl=document.getElementById('dict-domain-input');
+  const coEl=document.getElementById('dict-company-input');
+  const domain=domEl.value.trim().toLowerCase();
+  const company=coEl.value.trim();
+  if(!domain||!company)return;
+  const userDomains=loadUserDomains();
+  userDomains[domain]=company;
+  saveUserDomains(userDomains);
+  domEl.value='';coEl.value='';
+  renderDomainDict();
+  refreshEnrichSection();
+}
+
+function removeDomainEntry(domain){
+  const userDomains=loadUserDomains();
+  delete userDomains[domain];
+  saveUserDomains(userDomains);
+  renderDomainDict();
+  refreshEnrichSection();
+}
+
+let dictOpen=false;
+function toggleDomainDict(){
+  dictOpen=!dictOpen;
+  document.getElementById('domain-dict-panel').style.display=dictOpen?'block':'none';
+  if(dictOpen)renderDomainDict();
+}
+
+function renderDomainDict(){
+  const userDomains=loadUserDomains();
+  const list=document.getElementById('dict-list');
+  list.innerHTML='';
+  const allEntries=[
+    ...Object.entries(BUILTIN_DOMAINS).map(([d,c])=>({d,c,custom:false})),
+    ...Object.entries(userDomains).map(([d,c])=>({d,c,custom:true})),
+  ].sort((a,b)=>a.d.localeCompare(b.d));
+  if(!allEntries.length){list.innerHTML='<p style="padding:12px;font-size:13px;color:var(--muted);">No entries yet.</p>';return;}
+  allEntries.forEach(({d,c,custom})=>{
+    const row=document.createElement('div');row.className='dict-row';
+    row.innerHTML=`<span class="dict-domain">${d}</span><span class="dict-company">${c}</span><span class="dict-source ${custom?'custom':'builtin'}">${custom?'custom':'built-in'}</span>${custom?`<button class="sm" onclick="removeDomainEntry('${d}')" style="padding:2px 6px;color:var(--danger);">✕</button>`:''}`;
+    list.appendChild(row);
+  });
+}
+
+function refreshEnrichSection(){
+  if(!csvData.length)return;
+  const emailIdx=headers.findIndex(h=>/primary email/i.test(h));
+  const compIdx=headers.findIndex(h=>h.trim().toLowerCase()==='company');
+  if(emailIdx===-1||compIdx===-1){document.getElementById('enrich-section').style.display='none';return;}
+  document.getElementById('enrich-section').style.display='block';
+  const dict=getFullDict();
+  let canFill=0,alreadyHas=0,unknown=0,personal=0;
+  csvData.forEach(row=>{
+    const comp=(row[compIdx]||'').trim();
+    const email=(row[emailIdx]||'').trim();
+    if(comp){alreadyHas++;return;}
+    const domain=domainFromEmail(email);
+    if(PERSONAL_DOMAINS.has(domain)){personal++;return;}
+    if(dict[domain]){canFill++;}else{unknown++;}
+  });
+  document.getElementById('enrich-badge').textContent=`${canFill} will be filled`;
+  document.getElementById('enrich-summary').textContent=
+    `${canFill} blank company fields will be filled from email domain · ${alreadyHas} already have a company · ${personal} personal emails skipped · ${unknown} unknown domains`;
+}
+
+// ── Job title unification ─────────────────────────────────────────────────
+function unifyTitle(title){
+  const t=(title||'').toLowerCase();
+  if(t.includes('vice president'))return'Vice President, Estimator & Project Manager';
+  if(t.includes('chief'))return'Chief Estimator & Project Manager';
+  if(t.includes('senior')||t.includes('lead'))return'Senior Estimator & Project Manager';
+  if(t.includes('superintendent')&&!t.startsWith('estimator'))return'Superintendent Estimator & Project Manager';
+  if(t.includes('estimator')||t.includes('project manager'))return'Estimator & Project Manager';
+  return title;
+}
+
+function onUnifyToggle(){
+  const on=document.getElementById('unify-toggle').checked;
+  document.getElementById('unify-preview-wrap').style.display=on?'block':'none';
+  if(on)renderUnifyPreview();
+  updateSummary();
+}
+
+function renderUnifyPreview(){
+  const titleIdx=headers.findIndex(h=>/job\s*title/i.test(h.trim()));
+  if(titleIdx===-1)return;
+  const seen=new Map();
+  csvData.forEach(row=>{
+    const orig=(row[titleIdx]||'').trim();
+    if(!orig||seen.has(orig))return;
+    seen.set(orig,unifyTitle(orig));
+  });
+  const sorted=[...seen.entries()].sort((a,b)=>a[1].localeCompare(b[1]));
+  let changed=0,same=0;
+  sorted.forEach(([o,u])=>{if(o!==u)changed++;else same++;});
+  const wrap=document.getElementById('unify-preview-table');
+  wrap.innerHTML=`<table><thead><tr><th>Original Job Title</th><th>Unified Title</th></tr></thead><tbody>${
+    sorted.map(([o,u])=>`<tr><td class="${o!==u?'changed':'same'}">${o}</td><td class="${o!==u?'changed':'same'}">${u}</td></tr>`).join('')
+  }</tbody></table>`;
+  document.getElementById('unify-stats').textContent=`${changed} title${changed!==1?'s':''} will be changed · ${same} already match`;
+}
+
+function refreshTitleSection(){
+  const titleIdx=headers.findIndex(h=>/job\s*title/i.test(h.trim()));
+  document.getElementById('title-section').style.display=titleIdx!==-1?'block':'none';
+}
+
+// ── Memory ────────────────────────────────────────────────────────────────
+function loadMem(){try{return JSON.parse(localStorage.getItem(MK)||'[]');}catch(e){return[];}}
+function saveMem(n){try{localStorage.setItem(MK,JSON.stringify(n));}catch(e){}}
+function clearMemory(){try{localStorage.removeItem(MK);}catch(e){}document.getElementById('memory-badge').style.display='none';renderColumns();updateSummary();}
+function persistMem(){const c=[...document.querySelectorAll('#col-list input[type=checkbox]:checked')].map(cb=>cb.dataset.colname).filter(Boolean);saveMem(c);}
+
+// ── Duplicate detection ───────────────────────────────────────────────────
+function toggleDups(){dupOpen=!dupOpen;document.getElementById('dup-body').style.display=dupOpen?'block':'none';document.getElementById('dup-chevron').style.transform=dupOpen?'':'rotate(-90deg)';document.getElementById('dup-legend').style.display=dupOpen?'flex':'none';}
+
+window.onload=()=>{
+  keywords=[...DEFAULT_KEYWORDS];renderKeywords();
+  document.getElementById('tag-input').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();addTag();}});
+};
+
+function resetTool(){document.getElementById('upload-zone').style.display='block';document.getElementById('main').style.display='none';csvData=[];headers=[];keepCols=new Set();dupPairs=[];dismissedDups=new Set();document.getElementById('file-input').value='';}
+function handleDrop(e){e.preventDefault();document.getElementById('upload-zone').classList.remove('drag');handleFile(e.dataTransfer.files[0]);}
+function handleFile(file){
+  if(!file)return;
+  const name=file.name.toLowerCase();
+  if(!name.endsWith('.csv'))return;
+  const r=new FileReader();r.onload=e=>parseCSV(e.target.result,file.name);r.readAsText(file);
+}
+function parseCSV(text,name){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim());if(!lines.length)return;
+  headers=parseRow(lines[0]);csvData=lines.slice(1).map(parseRow);
+  document.getElementById('upload-zone').style.display='none';document.getElementById('main').style.display='block';
+  document.getElementById('file-name').textContent=name;
+  document.getElementById('file-stats').textContent=`${csvData.length} rows · ${headers.length} columns`;
+  renderColumns();detectDuplicates();refreshEnrichSection();refreshTitleSection();updateSummary();
+}
+function parseRow(line){const res=[];let cur='',inQ=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"')inQ=!inQ;else if(c===','&&!inQ){res.push(cur);cur='';}else cur+=c;}res.push(cur);return res;}
+
+// ── Tag ───────────────────────────────────────────────────────────────────
+function addTag(){const input=document.getElementById('tag-input');const val=input.value.trim();if(val&&!tags.includes(val)){tags.push(val);renderTags();}input.value='';}
+function removeTag(i){tags.splice(i,1);renderTags();}
+function renderTags(){
+  const el=document.getElementById('tag-chips');el.innerHTML='';
+  tags.forEach((t,i)=>{
+    const chip=document.createElement('span');chip.className='tag-chip';
+    const lbl=document.createElement('span');lbl.textContent=t;
+    const x=document.createElement('span');x.textContent='×';x.style.cssText='cursor:pointer;font-size:15px;line-height:1;opacity:0.7;';x.onclick=()=>removeTag(i);
+    chip.append(lbl,x);el.appendChild(chip);
+  });
+  document.getElementById('tag-summary').textContent=tags.length?`Tag column will be added: ${tags.join(', ')}`:'No tag set — Tag column will not be added.';
+  updateSummary();
+}
+
+// ── Duplicate detection ───────────────────────────────────────────────────
+function normalize(s){s=s.toLowerCase().replace(/[,.\-&()']/g,' ');['inc','llc','corp','co','ltd','the','and','construction','contracting','company','companies','group','services','builders','contractors'].forEach(w=>{s=s.replace(new RegExp('\\b'+w+'\\b','g'),'');});return s.replace(/\s+/g,' ').trim();}
+function similarity(a,b){const s1=normalize(a),s2=normalize(b);if(!s1||!s2)return 0;const longer=s1.length>s2.length?s1:s2,shorter=s1.length<=s2.length?s1:s2;if(!longer.length)return 1;let m=0,arr=shorter.split('');for(const c of longer){const idx=arr.indexOf(c);if(idx!==-1){m++;arr.splice(idx,1);}}return(2*m)/(s1.length+s2.length);}
+function guessNote(a,b,score){if(score>=0.97)return'Same company, formatting difference';if(score>=0.93)return Math.abs(a.length-b.length)>a.length*0.3?'Same company, abbreviated name':'Same company, minor spelling difference';if(score>=0.85)return /phoenix/i.test(a+b)?'Same company, branch office':'Likely same company, verify in Crelate';return'Possible duplicate, verify in Crelate';}
+function detectDuplicates(){
+  const ci=headers.findIndex(h=>h.trim().toLowerCase()==='company');
+  if(ci===-1){document.getElementById('dup-section').style.display='none';return;}
+  document.getElementById('dup-section').style.display='block';
+  const cos=[...new Set(csvData.map(r=>(r[ci]||'').trim()).filter(Boolean))];
+  dupPairs=[];
+  for(let i=0;i<cos.length;i++)for(let j=i+1;j<cos.length;j++){const s=similarity(cos[i],cos[j]);if(s>=0.75)dupPairs.push({score:s,a:cos[i],b:cos[j]});}
+  dupPairs.sort((x,y)=>y.score-x.score);dismissedDups=new Set();renderDuplicates();
+}
+function renderDuplicates(){
+  const vis=dupPairs.filter((_,i)=>!dismissedDups.has(i));
+  document.getElementById('dup-count-badge').textContent=`${vis.length} found`;
+  const list=document.getElementById('dup-list');list.innerHTML='';
+  if(!vis.length){list.innerHTML='<p style="font-size:13px;color:var(--muted);">No duplicates found — looking good!</p>';return;}
+  dupPairs.forEach((p,i)=>{
+    if(dismissedDups.has(i))return;
+    const col=p.score>=0.95?'#c0392b':p.score>=0.82?'#d68910':'#2471a3';
+    const row=document.createElement('div');row.className='dup-row';
+    row.innerHTML=`<span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;display:inline-block;"></span><span style="flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.a}</span><span style="color:var(--faint);font-size:11px;padding:0 6px;flex-shrink:0;">vs</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.b}</span><span style="font-size:11px;color:var(--muted);min-width:32px;text-align:right;flex-shrink:0;">${Math.round(p.score*100)}%</span><button class="sm" onclick="dismissDup(${i})" style="margin-left:4px;padding:3px 8px;">✕</button>`;
+    list.appendChild(row);
+  });
+}
+function dismissDup(i){dismissedDups.add(i);renderDuplicates();}
+function downloadDupCSV(){
+  const vis=dupPairs.filter((_,i)=>!dismissedDups.has(i));
+  const rows=[['Company A','Company B','Confidence','Notes','Name Variations']];
+  vis.forEach(p=>{const conf=p.score>=0.95?'Almost certain':p.score>=0.82?'Likely duplicate':'Possible duplicate';rows.push([p.a,p.b,conf,guessNote(p.a,p.b,p.score),`${p.a}, ${p.b}`]);});
+  dl(rows.map(r=>r.map(esc).join(',')).join('\n'),'duplicate_companies.csv');
+}
+function copyAllDups(){
+  const vis=dupPairs.filter((_,i)=>!dismissedDups.has(i));
+  navigator.clipboard.writeText('Possible duplicate companies to merge in Crelate:\n\n'+vis.map((p,i)=>`${i+1}. "${p.a}" and "${p.b}" (${Math.round(p.score*100)}% match)`).join('\n')).then(()=>{const el=document.getElementById('copy-confirm');el.textContent='Copied!';el.style.opacity='1';setTimeout(()=>el.style.opacity='0',2000);});
+}
+
+// ── Keywords ──────────────────────────────────────────────────────────────
+function addKeyword(){const input=document.getElementById('keyword-input'),val=input.value.trim().toLowerCase();if(val&&!keywords.includes(val)){keywords.push(val);renderKeywords();updateSummary();}input.value='';}
+function removeKeyword(i){keywords.splice(i,1);renderKeywords();updateSummary();}
+function renderKeywords(){
+  const list=document.getElementById('keyword-list');list.innerHTML='';
+  keywords.forEach((kw,i)=>{
+    const tag=document.createElement('span');tag.style.cssText='display:inline-flex;align-items:center;gap:6px;background:var(--danger-light);color:var(--danger);font-size:13px;padding:3px 10px;border-radius:99px;border:1px solid #f5c6c6;';
+    const lbl=document.createElement('span');lbl.textContent=kw;
+    const x=document.createElement('span');x.textContent='×';x.style.cssText='cursor:pointer;font-size:16px;line-height:1;opacity:.7;';x.onclick=()=>removeKeyword(i);
+    tag.append(lbl,x);list.appendChild(tag);
+  });
+}
+function getFilteredRows(){if(!keywords.length)return csvData;const ci=headers.findIndex(h=>h.trim().toLowerCase()==='company');if(ci===-1)return csvData;return csvData.filter(row=>!keywords.some(kw=>(row[ci]||'').toLowerCase().includes(kw)));}
+
+// ── Column picker ─────────────────────────────────────────────────────────
+function renderColumns(){
+  const list=document.getElementById('col-list');list.innerHTML='';
+  const remembered=loadMem();let memoryUsed=false;keepCols=new Set();
+  const indexed=headers.map((h,i)=>({h,i}));
+  indexed.sort((a,b)=>a.h.toLowerCase().localeCompare(b.h.toLowerCase()));
+  indexed.forEach(({h,i})=>{
+    const empty=csvData.every(row=>!row[i]||!row[i].trim());
+    const autoRemove=AUTO_REMOVE.includes(h.trim().toLowerCase());
+    const inMemory=remembered.includes(h.trim());
+    const shouldKeep=!autoRemove&&!empty&&(inMemory||remembered.length===0);
+    if(shouldKeep)keepCols.add(i);
+    if(inMemory&&!autoRemove&&!empty)memoryUsed=true;
+    const label=document.createElement('label');label.className='col-item';
+    const cb=document.createElement('input');cb.type='checkbox';cb.dataset.idx=i;cb.dataset.colname=h.trim();
+    cb.checked=shouldKeep;cb.disabled=autoRemove||empty;
+    if(autoRemove||empty)cb.style.opacity='0.35';
+    cb.onchange=()=>{cb.checked?keepCols.add(i):keepCols.delete(i);persistMem();updateSummary();};
+    const ns=document.createElement('span');ns.textContent=h||`(column ${i+1})`;ns.title=h;
+    if(autoRemove||empty)ns.style.color='var(--muted)';
+    label.append(cb,ns);
+    if(empty||autoRemove||inMemory){
+      const badge=document.createElement('span');
+      if(empty){badge.className='badge badge-warn';badge.textContent='empty';}
+      else if(autoRemove){badge.className='badge badge-danger';badge.textContent='removed';}
+      else{badge.className='badge badge-saved';badge.textContent='saved';}
+      badge.style.flexShrink='0';label.appendChild(badge);
+    }
+    list.appendChild(label);
+  });
+  document.getElementById('memory-badge').style.display=(remembered.length>0&&memoryUsed)?'inline-flex':'none';
+}
+function selectAll(){document.querySelectorAll('#col-list input[type=checkbox]:not(:disabled)').forEach(cb=>{cb.checked=true;keepCols.add(+cb.dataset.idx);});persistMem();updateSummary();}
+function selectNone(){document.querySelectorAll('#col-list input[type=checkbox]:not(:disabled)').forEach(cb=>{cb.checked=false;keepCols.delete(+cb.dataset.idx);});persistMem();updateSummary();}
+
+// ── Summary ───────────────────────────────────────────────────────────────
+function updateSummary(){
+  if(!csvData.length)return;
+  const filtered=getFilteredRows(),removedRows=csvData.length-filtered.length;
+  const ci=headers.findIndex(h=>h.trim().toLowerCase()==='company');
+  document.getElementById('row-filter-summary').textContent=keywords.length?(ci===-1?'No "Company" column found — row filter inactive':`${removedRows} row${removedRows!==1?'s':''} will be removed · ${filtered.length} will remain`):'No keyword filters set';
+  const unifyOn=document.getElementById('unify-toggle').checked;
+  const tagNote=tags.length?` · Tag: "${tags.join(', ')}"`:' · No tag';
+  const unifyNote=unifyOn?' · +Unified Title col':'';
+  document.getElementById('summary').textContent=`${keepCols.size} col${keepCols.size!==1?'s':''} kept · ${filtered.length} rows${tagNote}${unifyNote}`;
+  document.getElementById('download-btn').disabled=keepCols.size===0;
+}
+
+// ── Download ──────────────────────────────────────────────────────────────
+function downloadCleaned(){
+  const emailIdx=headers.findIndex(h=>/primary email/i.test(h));
+  const compIdx=headers.findIndex(h=>h.trim().toLowerCase()==='company');
+  const titleIdx=headers.findIndex(h=>/job\s*title/i.test(h.trim()));
+  const unifyOn=document.getElementById('unify-toggle').checked;
+  const dict=getFullDict();
+
+  const enrichedData=getFilteredRows().map(row=>{
+    const r=[...row];
+    // Fill blank company from email
+    if(emailIdx!==-1&&compIdx!==-1&&!(r[compIdx]||'').trim()){
+      const company=lookupCompany(r[emailIdx]);
+      if(company)r[compIdx]=company;
+    }
+    return r;
+  });
+
+  const keepIdx=[...keepCols].sort((a,b)=>a-b);
+  const extraCols=[];
+  if(unifyOn&&titleIdx!==-1)extraCols.push('Unified Title');
+  if(tags.length)extraCols.push('Tag');
+
+  const newHeaders=[...keepIdx.map(i=>headers[i]),...extraCols];
+  const rows=[newHeaders.map(esc).join(',')];
+  const tagVal=tags.join(', ');
+
+  enrichedData.forEach(row=>{
+    const vals=keepIdx.map(i=>esc(row[i]??''));
+    if(unifyOn&&titleIdx!==-1)vals.push(esc(unifyTitle(row[titleIdx]||'')));
+    if(tags.length)vals.push(esc(tagVal));
+    rows.push(vals.join(','));
+  });
+  dl(rows.join('\n'),'cleaned.csv');
+}
+
+function dl(content,filename){const blob=new Blob([content],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();}
+function esc(val){val=String(val??'');if(val.includes(',')||val.includes('"')||val.includes('\n'))return'"'+val.replace(/"/g,'""')+'"';return val;}
+</script>
+</body>
+</html>
